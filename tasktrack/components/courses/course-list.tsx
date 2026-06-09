@@ -66,13 +66,26 @@ export function CourseList() {
   useEffect(() => {
     loadTasks();
 
-    const handleStorageUpdate = () => loadTasks();
-    window.addEventListener('tasktrack-tasks-updated', handleStorageUpdate);
-    window.addEventListener('storage', handleStorageUpdate);
+    const handleStorageUpdate = (e?: Event) => {
+      // If the event carries the updated tasks, use them directly
+      try {
+        const ce = e as any;
+        if (ce && ce.detail && Array.isArray(ce.detail)) {
+          setTasks(ce.detail.map(normalizeTask));
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      loadTasks();
+    };
+
+    window.addEventListener('tasktrack-tasks-updated', handleStorageUpdate as EventListener);
+    window.addEventListener('storage', handleStorageUpdate as EventListener);
 
     return () => {
-      window.removeEventListener('tasktrack-tasks-updated', handleStorageUpdate);
-      window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('tasktrack-tasks-updated', handleStorageUpdate as EventListener);
+      window.removeEventListener('storage', handleStorageUpdate as EventListener);
     };
   }, []);
 

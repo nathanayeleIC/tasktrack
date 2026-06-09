@@ -57,7 +57,15 @@ function deleteCalendarEvent(taskId: string) {
 function persistTasks(updatedTasks: Task[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
-  window.dispatchEvent(new Event('tasktrack-tasks-updated'));
+  // Dispatch updated tasks payload so other components can refresh immediately
+  try {
+    window.dispatchEvent(new CustomEvent('tasktrack-tasks-updated', { detail: updatedTasks }));
+  } catch {
+    // Fallback for environments that don't support CustomEvent constructor
+    const ev: any = document.createEvent('CustomEvent');
+    ev.initCustomEvent('tasktrack-tasks-updated', false, false, updatedTasks);
+    window.dispatchEvent(ev);
+  }
 }
 
 export function TaskList() {
@@ -70,7 +78,10 @@ export function TaskList() {
     if (!raw) return;
     try {
       const stored = JSON.parse(raw) as Task[];
-      setTasks((current) => [...current, ...stored.map(normalizeTask)]);
+      // If there are stored tasks, use those (avoid duplicating initialTasks)
+      if (stored.length > 0) {
+        setTasks(stored.map(normalizeTask));
+      }
     } catch {
       // ignore invalid storage
     }
