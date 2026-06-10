@@ -3,62 +3,79 @@ import type { Config } from 'tailwindcss';
 const config: Config = {
   content: [
     './app/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}'
+    './components/**/*.{js,ts,jsx,tsx}',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#f8f9ff',
-          dim: '#cbdbf5',
-          bright: '#ffffff'
+          DEFAULT: '#fbf9f8',
+          dim: '#dcd9d9',
+          bright: '#ffffff',
+          container: '#f0eded',
+          'container-low': '#f5f3f2',
+          'container-high': '#eae8e7',
+          'container-highest': '#e4e2e1',
         },
         brand: {
-          50: '#eef4ff',
-          100: '#dce9ff',
-          200: '#b3c8ff',
-          300: '#7f9ffc',
-          400: '#5b78f8',
-          500: '#3c5fe4',
-          600: '#2f4dc1',
-          700: '#28439c',
-          800: '#233a7f',
-          900: '#1f3368'
+          50: '#d7e5e7',
+          100: '#beccce',
+          200: '#bbc9cb',
+          300: '#9cb0b2',
+          400: '#7d9496',
+          500: '#4a5759',
+          600: '#3c494b',
+          700: '#334042',
+          800: '#253335',
+          900: '#1b2526',
+        },
+        sage: {
+          50: '#d3e8d4',
+          100: '#b8ccb9',
+          200: '#b0c4b1',
+          500: '#516353',
+          600: '#394b3c',
+          700: '#2a3c2d',
+        },
+        blush: {
+          50: '#ffd9de',
+          100: '#f8b9c2',
+          200: '#f5b6bf',
+          500: '#edafb8',
+          600: '#c4838e',
+          700: '#77474f',
         },
         success: {
-          50: '#ecfbef',
-          100: '#d6f6da',
-          200: '#a5e7b4',
-          300: '#6fd78d',
-          400: '#3eb96a',
-          500: '#0e9a51',
-          600: '#0a7a3d',
-          700: '#065c2c',
-          800: '#044726',
-          900: '#03381f'
+          50: '#d3e8d4',
+          100: '#b8ccb9',
+          200: '#b0c4b1',
+          500: '#516353',
+          600: '#394b3c',
+          700: '#2a3c2d',
+          900: '#1a2e1c',
         },
         warning: {
           50: '#fff6e4',
           100: '#fde8b7',
           200: '#fbd786',
-          300: '#f7c75b',
-          400: '#f5b235',
           500: '#e89a1e',
-          600: '#b77417',
-          700: '#8a5813',
-          800: '#69440f',
-          900: '#4f340c'
-        }
+          900: '#4f340c',
+        },
+        'on-surface': '#1b1c1c',
+        'on-surface-variant': '#424848',
+        outline: '#737879',
+        'outline-variant': '#c3c7c8',
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 12px 40px -22px rgba(15, 23, 42, 0.35)'
-      }
-    }
+        soft: '0 8px 30px -12px rgba(74, 87, 89, 0.12)',
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
 
 export default config;

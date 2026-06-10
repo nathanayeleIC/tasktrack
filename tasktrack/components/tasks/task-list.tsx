@@ -32,10 +32,7 @@ function normalizeStatus(status?: string): TaskStatus {
 }
 
 function normalizeTask(task: Task): Task {
-  return {
-    ...task,
-    status: normalizeStatus(task.status)
-  };
+  return { ...task, status: normalizeStatus(task.status) };
 }
 
 function persistCalendarEvent(event: { id: string; title: string; date: string; label: string; color: string; description: string }) {
@@ -49,24 +46,27 @@ function deleteCalendarEvent(taskId: string) {
   if (typeof window === 'undefined') return;
   const raw = window.localStorage.getItem(CALENDAR_STORAGE_KEY);
   if (!raw) return;
-  const current = JSON.parse(raw);
-  const filtered = current.filter((event: any) => !event.id.includes(taskId));
+  const filtered = (JSON.parse(raw) as any[]).filter((e) => !e.id.includes(taskId));
   window.localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(filtered));
 }
 
-function persistTasks(updatedTasks: Task[]) {
+function persistTasks(updated: Task[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
-  // Dispatch updated tasks payload so other components can refresh immediately
+  window.localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updated));
   try {
-    window.dispatchEvent(new CustomEvent('tasktrack-tasks-updated', { detail: updatedTasks }));
+    window.dispatchEvent(new CustomEvent('tasktrack-tasks-updated', { detail: updated }));
   } catch {
-    // Fallback for environments that don't support CustomEvent constructor
     const ev: any = document.createEvent('CustomEvent');
-    ev.initCustomEvent('tasktrack-tasks-updated', false, false, updatedTasks);
+    ev.initCustomEvent('tasktrack-tasks-updated', false, false, updated);
     window.dispatchEvent(ev);
   }
 }
+
+const statusStyles: Record<TaskStatus, string> = {
+  'Not Started': 'bg-surface-container-high text-on-surface-variant',
+  'In Progress': 'bg-brand-100 text-brand-700',
+  Completed: 'bg-sage-50 text-sage-600',
+};
 
 export function TaskList() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -75,16 +75,17 @@ export function TaskList() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = window.localStorage.getItem(TASK_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const stored = JSON.parse(raw) as Task[];
-      // If there are stored tasks, use those (avoid duplicating initialTasks)
-      if (stored.length > 0) {
-        setTasks(stored.map(normalizeTask));
-      }
-    } catch {
-      // ignore invalid storage
+    if (raw) {
+      try {
+        const stored = JSON.parse(raw) as Task[];
+        if (stored.length > 0) {
+          setTasks(stored.map(normalizeTask));
+          return;
+        }
+      } catch {}
     }
+    // Nothing in storage yet — persist initial data so overview can read it
+    persistTasks(initialTasks);
   }, []);
 
   const updateTaskStatus = (taskId: string, status: TaskStatus) => {
@@ -131,68 +132,76 @@ export function TaskList() {
 
   const statusGroups = useMemo(
     () => ({
-      'Not Started': tasks.filter((task) => task.status === 'Not Started'),
-      'In Progress': tasks.filter((task) => task.status === 'In Progress'),
-      Completed: tasks.filter((task) => task.status === 'Completed')
+      'Not Started': tasks.filter((t) => t.status === 'Not Started'),
+      'In Progress': tasks.filter((t) => t.status === 'In Progress'),
+      Completed: tasks.filter((t) => t.status === 'Completed'),
     }),
     [tasks]
   );
 
   return (
     <>
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
+      <div className="rounded-3xl border border-outline-variant bg-white p-8 shadow-soft">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-slate-900">Task list</h2>
-            <p className="mt-2 text-slate-600">Manage tasks for courses, projects, and personal work.</p>
+            <h2 className="text-2xl font-semibold text-on-surface">Task list</h2>
+            <p className="mt-2 text-on-surface-variant">Manage tasks for courses, projects, and personal work.</p>
           </div>
-          <button onClick={() => setIsModalOpen(true)} className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+          >
             Add new task
           </button>
         </div>
 
         <div className="mt-8 space-y-6">
           {(['Not Started', 'In Progress', 'Completed'] as TaskStatus[]).map((section) => (
-            <div key={section} className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900">{section}</h3>
-                  <p className="text-sm text-slate-600">{statusGroups[section].length} task{statusGroups[section].length === 1 ? '' : 's'}</p>
-                </div>
+            <div key={section} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-on-surface">{section}</h3>
+                <span className="rounded-full bg-surface-container-high px-2.5 py-0.5 text-xs font-semibold text-on-surface-variant">
+                  {statusGroups[section].length}
+                </span>
               </div>
 
-              <div className="mt-6 space-y-4">
-                {statusGroups[section].length === 0 && <p className="text-sm text-slate-500">No {section.toLowerCase()} tasks yet.</p>}
+              <div className="mt-5 space-y-3">
+                {statusGroups[section].length === 0 && (
+                  <p className="text-sm italic text-outline">No {section.toLowerCase()} tasks yet.</p>
+                )}
                 {statusGroups[section].map((task) => (
-                  <div key={task.id} className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <div key={task.id} className="rounded-2xl border border-outline-variant bg-white p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1">
-                        <h4 className="text-lg font-semibold text-slate-900">{task.name}</h4>
-                        <p className="mt-1 text-sm font-medium uppercase tracking-[0.1em] text-slate-500">{task.category}</p>
-                        <p className="mt-2 text-sm text-slate-600">{task.description}</p>
+                        <h4 className="text-base font-semibold text-on-surface">{task.name}</h4>
+                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.15em] text-outline">{task.category}</p>
+                        <p className="mt-2 text-sm text-on-surface-variant">{task.description}</p>
                       </div>
                       <div className="flex flex-col items-start gap-3 sm:items-end">
                         <div className="flex flex-col gap-2 sm:items-end">
-                          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Status</label>
+                          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-outline">Status</label>
                           <select
                             value={task.status}
                             onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                            className="rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none"
+                            className="rounded-full border border-outline-variant bg-surface-container-low px-4 py-2 text-sm text-on-surface focus:border-brand-500 focus:outline-none"
                           >
                             <option>Not Started</option>
                             <option>In Progress</option>
                             <option>Completed</option>
                           </select>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[task.status]}`}>
+                            {task.status}
+                          </span>
                           <button
                             onClick={() => handleDeleteTask(task.id)}
-                            className="rounded-full bg-red-100 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-200"
+                            className="rounded-full bg-blush-50 px-3 py-1 text-xs font-semibold text-blush-700 transition hover:bg-blush-100"
                           >
                             Delete
                           </button>
                         </div>
-                        <p className="text-sm text-slate-600">Due {task.dueDate}</p>
+                        <p className="text-sm text-outline">Due {task.dueDate}</p>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
+import { Geist } from 'next/font/google';
 import './globals.css';
 import { Sidebar } from '../components/ui/sidebar';
+
+const geist = Geist({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'TaskTrack',
@@ -9,8 +12,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="bg-surface text-slate-900">
+    <html lang="en" suppressHydrationWarning className={geist.className}>
+      <body className="bg-surface text-on-surface">
         <div className="min-h-screen bg-surface">
           <div className="mx-auto flex min-h-screen max-w-[1600px]">
             <Sidebar />

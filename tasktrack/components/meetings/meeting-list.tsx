@@ -32,9 +32,20 @@ function deleteCalendarEvent(meetingId: string) {
   if (typeof window === 'undefined') return;
   const raw = window.localStorage.getItem(CALENDAR_STORAGE_KEY);
   if (!raw) return;
-  const current = JSON.parse(raw);
-  const filtered = current.filter((event: any) => !event.id.includes(meetingId));
+  const filtered = (JSON.parse(raw) as any[]).filter((e) => !e.id.includes(meetingId));
   window.localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(filtered));
+}
+
+function persistMeetings(updated: Meeting[]) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(updated));
+  try {
+    window.dispatchEvent(new CustomEvent('tasktrack-meetings-updated', { detail: updated }));
+  } catch {
+    const ev: any = document.createEvent('CustomEvent');
+    ev.initCustomEvent('tasktrack-meetings-updated', false, false, updated);
+    window.dispatchEvent(ev);
+  }
 }
 
 export function MeetingList() {
@@ -44,13 +55,17 @@ export function MeetingList() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = window.localStorage.getItem(MEETING_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const stored = JSON.parse(raw) as Meeting[];
-      setMeetings((current) => [...current, ...stored]);
-    } catch {
-      // ignore invalid storage
+    if (raw) {
+      try {
+        const stored = JSON.parse(raw) as Meeting[];
+        if (stored.length > 0) {
+          setMeetings(stored);
+          return;
+        }
+      } catch {}
     }
+    // Nothing in storage yet — persist initial data so overview can read it
+    persistMeetings(initialMeetings);
   }, []);
 
   const handleCreateMeeting = (formData: TaskFormData) => {
@@ -68,9 +83,7 @@ export function MeetingList() {
 
     const updated = [...meetings, newMeeting];
     setMeetings(updated);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify([...(JSON.parse(window.localStorage.getItem(MEETING_STORAGE_KEY) || '[]') as Meeting[]), newMeeting]));
-    }
+    persistMeetings(updated);
 
     persistCalendarEvent({
       id: `calendar-meeting-${Date.now()}`,
@@ -85,48 +98,54 @@ export function MeetingList() {
   };
 
   const handleDeleteMeeting = (meetingId: string) => {
-    setMeetings((current) => current.filter((meeting) => meeting.id !== meetingId));
-    if (typeof window !== 'undefined') {
-      const stored = JSON.parse(window.localStorage.getItem(MEETING_STORAGE_KEY) || '[]') as Meeting[];
-      window.localStorage.setItem(MEETING_STORAGE_KEY, JSON.stringify(stored.filter((m) => m.id !== meetingId)));
-    }
+    const updated = meetings.filter((m) => m.id !== meetingId);
+    setMeetings(updated);
+    persistMeetings(updated);
     deleteCalendarEvent(meetingId);
   };
 
   return (
     <>
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
+      <div className="rounded-3xl border border-outline-variant bg-white p-8 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold text-slate-900">Meeting schedule</h2>
-            <p className="mt-2 text-slate-600">Plan upcoming meetings and review your agenda.</p>
+            <h2 className="text-2xl font-semibold text-on-surface">Meeting schedule</h2>
+            <p className="mt-2 text-on-surface-variant">Plan upcoming meetings and review your agenda.</p>
           </div>
-          <button onClick={() => setIsModalOpen(true)} className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+          >
             Create meeting
           </button>
         </div>
         <div className="mt-8 space-y-4">
+          {meetings.length === 0 && (
+            <p className="text-sm italic text-outline">No meetings yet.</p>
+          )}
           {meetings.map((meeting) => (
-            <div key={meeting.id} className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
+            <div key={meeting.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-slate-900">{meeting.title}</h3>
-                    <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{meeting.category}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-semibold text-on-surface">{meeting.title}</h3>
+                    <span className="rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-on-surface-variant">
+                      {meeting.category}
+                    </span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{meeting.description}</p>
-                  <p className="mt-2 text-sm text-slate-600">{meeting.location}</p>
+                  <p className="mt-2 text-sm text-on-surface-variant">{meeting.description}</p>
+                  <p className="mt-1 text-sm text-outline">{meeting.location}</p>
                 </div>
-                <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <div className="flex gap-2">
-                    <p className="rounded-full bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">{meeting.date}</p>
-                    <button
-                      onClick={() => handleDeleteMeeting(meeting.id)}
-                      className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700 transition hover:bg-red-200"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-sage-50 px-3 py-1 text-sm font-semibold text-sage-600">
+                    {meeting.date}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteMeeting(meeting.id)}
+                    className="rounded-full bg-blush-50 px-3 py-1 text-sm font-semibold text-blush-700 transition hover:bg-blush-100"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>

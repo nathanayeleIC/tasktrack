@@ -1,73 +1,149 @@
-import { format } from '../../lib/utils/date';
+'use client';
 
-const upcomingTasks = [
-  {
-    id: '1',
-    title: 'Finalize project proposal',
-    dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000),
-    course: 'Product Design',
-    status: 'In progress'
-  },
-  {
-    id: '2',
-    title: 'Review sprint backlog',
-    dueDate: new Date(Date.now() + 72 * 60 * 60 * 1000),
-    course: 'Team Ops',
-    status: 'Open'
-  },
-  {
-    id: '3',
-    title: 'Complete weekly meeting notes',
-    dueDate: new Date(Date.now() + 96 * 60 * 60 * 1000),
-    course: 'Marketing',
-    status: 'Open'
+import { useEffect, useState } from 'react';
+
+const TASK_STORAGE_KEY = 'tasktrack-tasks';
+const MEETING_STORAGE_KEY = 'tasktrack-meetings';
+
+type Task = {
+  id: string;
+  name: string;
+  category: string;
+  dueDate: string;
+  status: string;
+};
+
+type Meeting = {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  description: string;
+};
+
+function readUpcomingTasks(): Task[] {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(TASK_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    return (JSON.parse(raw) as Task[])
+      .filter((t) => t.status !== 'Completed')
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      .slice(0, 3);
+  } catch {
+    return [];
   }
-];
+}
+
+function readUpcomingMeetings(): Meeting[] {
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(MEETING_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    return (JSON.parse(raw) as Meeting[]).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
 
 export function UpcomingTasks() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+
+  useEffect(() => {
+    setTasks(readUpcomingTasks());
+    setMeetings(readUpcomingMeetings());
+
+    const handleTasksUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        setTasks(
+          (detail as Task[])
+            .filter((t) => t.status !== 'Completed')
+            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+            .slice(0, 3)
+        );
+      } else {
+        setTasks(readUpcomingTasks());
+      }
+    };
+
+    const handleMeetingsUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        setMeetings((detail as Meeting[]).slice(0, 3));
+      } else {
+        setMeetings(readUpcomingMeetings());
+      }
+    };
+
+    const handleStorage = () => {
+      setTasks(readUpcomingTasks());
+      setMeetings(readUpcomingMeetings());
+    };
+
+    window.addEventListener('tasktrack-tasks-updated', handleTasksUpdate);
+    window.addEventListener('tasktrack-meetings-updated', handleMeetingsUpdate);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('tasktrack-tasks-updated', handleTasksUpdate);
+      window.removeEventListener('tasktrack-meetings-updated', handleMeetingsUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
   return (
     <section className="grid gap-6 lg:grid-cols-2">
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
-        <h2 className="text-2xl font-semibold text-slate-900">Upcoming tasks</h2>
-        <p className="mt-2 text-slate-600">Stay on top of your most important deadlines.</p>
+      <div className="rounded-3xl border border-outline-variant bg-white p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-on-surface">Upcoming tasks</h2>
+        <p className="mt-2 text-on-surface-variant">Stay on top of your most important deadlines.</p>
         <div className="mt-6 space-y-4">
-          {upcomingTasks.map((task) => (
-            <div key={task.id} className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
+          {tasks.length === 0 && (
+            <p className="text-sm italic text-outline">No upcoming tasks yet.</p>
+          )}
+          {tasks.map((task) => (
+            <div key={task.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{task.title}</h3>
-                  <p className="mt-1 text-sm text-slate-600">{task.course}</p>
+                  <h3 className="text-base font-semibold text-on-surface">{task.name}</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">{task.category}</p>
                 </div>
-                <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700">{task.status}</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  task.status === 'In Progress'
+                    ? 'bg-brand-100 text-brand-700'
+                    : 'bg-sage-50 text-sage-600'
+                }`}>
+                  {task.status}
+                </span>
               </div>
-              <p className="mt-3 text-sm text-slate-500">Due {format(task.dueDate)}</p>
+              <p className="mt-3 text-sm text-outline">Due {task.dueDate}</p>
             </div>
           ))}
         </div>
       </div>
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200/50">
-        <h2 className="text-2xl font-semibold text-slate-900">Upcoming meetings</h2>
+
+      <div className="rounded-3xl border border-outline-variant bg-white p-8 shadow-soft">
+        <h2 className="text-2xl font-semibold text-on-surface">Upcoming meetings</h2>
+        <p className="mt-2 text-on-surface-variant">Your next scheduled events.</p>
         <div className="mt-6 space-y-4">
-          <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Sprint planning</h3>
-                <p className="mt-1 text-sm text-slate-600">Engineering team</p>
+          {meetings.length === 0 && (
+            <p className="text-sm italic text-outline">No upcoming meetings yet.</p>
+          )}
+          {meetings.map((meeting) => (
+            <div key={meeting.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-semibold text-on-surface">{meeting.title}</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">{meeting.category}</p>
+                </div>
+                <span className="rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-600">
+                  {meeting.date}
+                </span>
               </div>
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700">Tomorrow</span>
+              <p className="mt-3 text-sm text-outline">{meeting.description}</p>
             </div>
-            <p className="mt-3 text-sm text-slate-500">Discuss priorities, blockers, and next milestones.</p>
-          </div>
-          <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Course check-in</h3>
-                <p className="mt-1 text-sm text-slate-600">Business Analytics</p>
-              </div>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">Friday</span>
-            </div>
-            <p className="mt-3 text-sm text-slate-500">Prepare updates for the upcoming student meeting.</p>
-          </div>
+          ))}
         </div>
       </div>
     </section>

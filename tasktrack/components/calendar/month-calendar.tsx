@@ -27,14 +27,14 @@ const defaultEvents: CalendarEvent[] = [
     title: 'Prepare design review',
     date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 2),
     label: 'Due date',
-    color: 'bg-slate-200 text-slate-900'
+    color: 'bg-surface-container-high text-on-surface'
   },
   {
     id: 'meeting-2',
     title: 'Client sync',
     date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 4),
     label: 'Meeting',
-    color: 'bg-brand-100 text-brand-800'
+    color: 'bg-brand-100 text-brand-700'
   },
   {
     id: 'task-2',
@@ -48,7 +48,7 @@ const defaultEvents: CalendarEvent[] = [
     title: 'Weekly review',
     date: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 7),
     label: 'Meeting',
-    color: 'bg-success-100 text-success-900'
+    color: 'bg-sage-50 text-sage-600'
   }
 ];
 
@@ -63,10 +63,7 @@ function getMonthGrid(year: number, month: number) {
     return dayNumber > 0 ? new Date(year, month, dayNumber) : null;
   });
 
-  while (cells.length % 7 !== 0) {
-    cells.push(null);
-  }
-
+  while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 }
 
@@ -78,15 +75,11 @@ function loadPersistedEvents(): CalendarEvent[] {
   if (typeof window === 'undefined') return [];
   const raw = window.localStorage.getItem(CALENDAR_STORAGE_KEY);
   if (!raw) return [];
-
   try {
     const parsed = JSON.parse(raw) as Array<{ id: string; title: string; date: string; label: string; color: string; description?: string }>;
     return parsed
-      .map((event) => ({
-        ...event,
-        date: new Date(event.date)
-      }))
-      .filter((event) => !Number.isNaN(event.date.getTime()));
+      .map((e) => ({ ...e, date: new Date(e.date) }))
+      .filter((e) => !Number.isNaN(e.date.getTime()));
   } catch {
     return [];
   }
@@ -102,7 +95,6 @@ export function MonthCalendar() {
   }, []);
 
   const events = useMemo(() => [...defaultEvents, ...savedEvents], [savedEvents]);
-
   const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const grid = useMemo(() => getMonthGrid(currentDate.getFullYear(), currentDate.getMonth()), [currentDate]);
 
@@ -117,23 +109,23 @@ export function MonthCalendar() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-[32px] border border-outline-variant bg-white p-6 shadow-soft sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-brand-600">Calendar</p>
-          <h2 className="mt-3 text-3xl font-semibold text-slate-900">Month view</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">All meetings and task due dates are shown on the calendar below.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-500">Calendar</p>
+          <h2 className="mt-3 text-3xl font-semibold text-on-surface">Month view</h2>
+          <p className="mt-2 text-sm leading-6 text-on-surface-variant">All meetings and task due dates are shown below.</p>
         </div>
-        <div className="inline-flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800">
+        <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant bg-surface-container-low px-4 py-2 text-sm font-semibold text-on-surface">
           <button
             onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            className="rounded-full bg-white px-3 py-2 transition hover:bg-slate-100"
+            className="rounded-full bg-white px-3 py-2 transition hover:bg-surface-container"
           >
             Prev
           </button>
           <span>{monthLabel}</span>
           <button
             onClick={() => setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            className="rounded-full bg-white px-3 py-2 transition hover:bg-slate-100"
+            className="rounded-full bg-white px-3 py-2 transition hover:bg-surface-container"
           >
             Next
           </button>
@@ -141,44 +133,49 @@ export function MonthCalendar() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-5 shadow-soft">
-          <div className="grid grid-cols-7 gap-2 border-b border-slate-200 pb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {days.map((day) => (
-              <div key={day}>{day}</div>
-            ))}
+        <div className="rounded-[32px] border border-outline-variant bg-white p-5 shadow-soft">
+          <div className="grid grid-cols-7 gap-2 border-b border-outline-variant pb-4 text-center text-xs font-semibold uppercase tracking-[0.15em] text-outline">
+            {days.map((day) => <div key={day}>{day}</div>)}
           </div>
           <div className="grid grid-cols-7 gap-2 pt-4">
             {grid.map((date, index) => {
               const key = date?.toDateString() ?? `empty-${index}`;
               const dayEvents = date ? eventMap[date.toDateString()] : undefined;
               const isCurrentMonth = date && date.getMonth() === currentDate.getMonth();
+              const isToday = date?.toDateString() === today.toDateString();
               return (
                 <div
                   key={key}
-                  className={`min-h-[115px] rounded-3xl border p-3 text-sm ${
+                  className={`min-h-[115px] rounded-2xl border p-3 text-sm ${
                     date
                       ? isCurrentMonth
-                        ? 'bg-white'
-                        : 'bg-slate-50 text-slate-400'
-                      : 'bg-transparent border-transparent'
+                        ? isToday
+                          ? 'border-brand-300 bg-brand-50'
+                          : 'border-outline-variant bg-white'
+                        : 'border-outline-variant/50 bg-surface-container-low text-outline'
+                      : 'border-transparent bg-transparent'
                   }`}
                 >
                   {date && (
                     <div className="flex items-start justify-between">
-                      <span className="text-sm font-semibold text-slate-900">{date.getDate()}</span>
-                      {date.toDateString() === today.toDateString() && (
-                        <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Today</span>
+                      <span className={`text-sm font-semibold ${isToday ? 'text-brand-600' : 'text-on-surface'}`}>
+                        {date.getDate()}
+                      </span>
+                      {isToday && (
+                        <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">Today</span>
                       )}
                     </div>
                   )}
-                  <div className="mt-3 space-y-1">
+                  <div className="mt-2 space-y-1">
                     {dayEvents?.slice(0, 2).map((event) => (
-                      <div key={event.id} className={`overflow-hidden rounded-2xl px-2 py-1 text-xs font-semibold ${event.color}`}>
-                        <span>{event.title}</span>
+                      <div key={event.id} className={`overflow-hidden rounded-xl px-2 py-1 text-xs font-semibold ${event.color}`}>
+                        {event.title}
                       </div>
                     ))}
                     {dayEvents && dayEvents.length > 2 && (
-                      <div className="rounded-2xl bg-slate-100 px-2 py-1 text-xs text-slate-600">+{dayEvents.length - 2} more</div>
+                      <div className="rounded-xl bg-surface-container px-2 py-1 text-xs text-outline">
+                        +{dayEvents.length - 2} more
+                      </div>
                     )}
                   </div>
                 </div>
@@ -187,14 +184,14 @@ export function MonthCalendar() {
           </div>
         </div>
 
-        <aside className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-soft">
-          <h3 className="text-xl font-semibold text-slate-900">Event details</h3>
-          <div className="mt-5 space-y-4">
+        <aside className="rounded-[32px] border border-outline-variant bg-white p-6 shadow-soft">
+          <h3 className="text-xl font-semibold text-on-surface">Event details</h3>
+          <div className="mt-5 space-y-3">
             {events.map((event) => (
-              <div key={event.id} className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-900">{event.title}</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">{event.label}</p>
-                <p className="mt-2 text-sm text-slate-600">{formatDateShort(event.date)}</p>
+              <div key={event.id} className="rounded-2xl border border-outline-variant bg-surface-container-low p-4">
+                <p className="text-sm font-semibold text-on-surface">{event.title}</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.15em] text-outline">{event.label}</p>
+                <p className="mt-1.5 text-sm text-on-surface-variant">{formatDateShort(event.date)}</p>
               </div>
             ))}
           </div>
