@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { supabaseClient } from '../../src/lib/supabase/client';
 
 type CreateModalProps = {
   isOpen: boolean;
@@ -13,26 +14,90 @@ export type TaskFormData = {
   title: string;
   category: string;
   priority: string;
+  location: string;
   date: string;
   time: string;
   description: string;
   type: 'task' | 'event';
 };
 
-const categories = ['Product Design', 'Business Analytics', 'Team Ops', 'Marketing', 'Engineering', 'General'];
 const priorities = ['Low', 'Medium', 'High'];
+const COURSE_STORAGE_KEY = 'tasktrack-courses';
+
+async function fetchCategoryNames(): Promise<string[]> {
+  if (typeof window === 'undefined') return ['Other'];
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+      const { data, error } = await supabaseClient
+        .from('courses')
+        .select('name')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      // If Supabase succeeded and has data, use it
+      if (!error && data && data.length > 0) {
+        return [...data.map((r: any) => r.name), 'Other'];
+      }
+      // Supabase returned empty or errored — fall back to localStorage cache
+      try {
+        const raw = window.localStorage.getItem(COURSE_STORAGE_KEY);
+        const courses = raw ? (JSON.parse(raw) as Array<{ name: string }>) : [];
+        if (courses.length > 0) return [...courses.map((c) => c.name), 'Other'];
+      } catch {}
+      return ['Other'];
+    }
+  } catch {}
+  // Guest: read from localStorage
+  try {
+    const raw = window.localStorage.getItem(COURSE_STORAGE_KEY);
+    const courses = raw ? (JSON.parse(raw) as Array<{ name: string }>) : [];
+    return [...courses.map((c) => c.name), 'Other'];
+  } catch {}
+  return ['Other'];
+}
 
 export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: CreateModalProps) {
   const [activeTab, setActiveTab] = useState<'task' | 'event'>(type);
+  const [categories, setCategories] = useState<string[]>(['Other']);
   const [formData, setFormData] = useState<TaskFormData>({
     title: '',
-    category: categories[0],
+    category: 'Other',
     priority: 'Medium',
+    location: '',
     date: '',
     time: '',
     description: '',
-    type: 'task'
+    type: 'task',
   });
+
+  // Reload categories every time modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchCategoryNames().then((cats) => {
+      setCategories(cats);
+      setFormData((prev) => ({
+        ...prev,
+        category: cats.includes(prev.category) ? prev.category : cats[0] ?? 'Other',
+      }));
+    });
+  }, [isOpen]);
+
+  // Listen to course creation events so the list updates instantly
+  useEffect(() => {
+    const handle = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        const cats = [...detail.map((c: any) => c.name as string), 'Other'];
+        setCategories(cats);
+        setFormData((prev) => ({
+          ...prev,
+          category: cats.includes(prev.category) ? prev.category : cats[0] ?? 'Other',
+        }));
+      }
+    };
+    window.addEventListener('tasktrack-courses-updated', handle);
+    return () => window.removeEventListener('tasktrack-courses-updated', handle);
+  }, []);
 
   useEffect(() => {
     setActiveTab(type);
@@ -48,7 +113,16 @@ export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: Create
     if (!formData.title.trim()) { alert('Please enter a title'); return; }
     if (!formData.date) { alert('Please enter a date'); return; }
     onSubmit({ ...formData, type: activeTab });
-    setFormData({ title: '', category: categories[0], priority: 'Medium', date: '', time: '', description: '', type: 'task' });
+    setFormData({
+      title: '',
+      category: categories[0] ?? 'Other',
+      priority: 'Medium',
+      location: '',
+      date: '',
+      time: '',
+      description: '',
+      type: activeTab,
+    });
   };
 
   if (!isOpen) return null;
@@ -57,8 +131,8 @@ export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: Create
   const labelClass = 'block text-xs font-semibold uppercase tracking-[0.2em] text-outline';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/20 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-[32px] border border-outline-variant bg-white shadow-soft">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/20 backdrop-blur-sm p-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-outline-variant bg-white shadow-soft">
         <div className="flex items-center justify-between border-b border-outline-variant px-8 py-6">
           <h2 className="text-2xl font-semibold text-on-surface">Create New</h2>
           <button
@@ -88,7 +162,7 @@ export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: Create
           ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 p-8">
+        <form onSubmit={handleSubmit} className="flex-1 space-y-6 overflow-y-auto p-8">
           <div>
             <label className={labelClass}>Title</label>
             <input
@@ -102,16 +176,37 @@ export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: Create
 
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Category</label>
-              <select value={formData.category} onChange={(e) => handleInputChange('category', e.target.value)} className={inputClass}>
-                {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              <label className={labelClass}>Project / Category</label>
+              <select
+                value={formData.category}
+                onChange={(e) => handleInputChange('category', e.target.value)}
+                className={inputClass}
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Priority</label>
-              <select value={formData.priority} onChange={(e) => handleInputChange('priority', e.target.value)} className={inputClass}>
-                {priorities.map((pri) => <option key={pri} value={pri}>{pri}</option>)}
-              </select>
+              {activeTab === 'event' ? (
+                <>
+                  <label className={labelClass}>Location</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    placeholder="Room 204, Zoom, Teams…"
+                    className={inputClass}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className={labelClass}>Priority</label>
+                  <select value={formData.priority} onChange={(e) => handleInputChange('priority', e.target.value)} className={inputClass}>
+                    {priorities.map((pri) => <option key={pri} value={pri}>{pri}</option>)}
+                  </select>
+                </>
+              )}
             </div>
           </div>
 
@@ -121,7 +216,7 @@ export function CreateModal({ isOpen, onClose, onSubmit, type = 'task' }: Create
               <input type="date" value={formData.date} onChange={(e) => handleInputChange('date', e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Time</label>
+              <label className={labelClass}>{activeTab === 'event' ? 'Start Time' : 'Time'}</label>
               <input type="time" value={formData.time} onChange={(e) => handleInputChange('time', e.target.value)} className={inputClass} />
             </div>
           </div>

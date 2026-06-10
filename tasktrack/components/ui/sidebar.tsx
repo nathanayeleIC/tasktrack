@@ -80,25 +80,29 @@ export function Sidebar() {
         <p className="mt-1 text-xs text-outline">Productivity Workspace</p>
       </div>
 
-      {/* Nav */}
-      <nav className="space-y-1">
-        {navItems.map((item) => {
-          const active = pathname === item.href || pathname?.startsWith(item.href + '/');
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`block rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                active
-                  ? 'bg-brand-500 text-white shadow-[0_6px_16px_-8px_rgba(74,87,89,0.5)]'
-                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Nav — only shown when signed in */}
+      {user ? (
+        <nav className="space-y-1">
+          {navItems.map((item) => {
+            const active = pathname === item.href || pathname?.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                  active
+                    ? 'bg-brand-500 text-white shadow-[0_6px_16px_-8px_rgba(74,87,89,0.5)]'
+                    : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : (
+        <p className="px-1 text-sm text-outline">Sign in to access your workspace.</p>
+      )}
 
       {/* Bottom info */}
       <div className="mt-auto pt-8">

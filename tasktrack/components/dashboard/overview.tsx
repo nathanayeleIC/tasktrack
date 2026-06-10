@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { supabaseClient } from '../../src/lib/supabase/client';
 
 const TASK_STORAGE_KEY = 'tasktrack-tasks';
 const MEETING_STORAGE_KEY = 'tasktrack-meetings';
@@ -18,8 +19,15 @@ type Meeting = {
   title: string;
   category: string;
   date: string;
+  endDate?: string;
   description: string;
 };
+
+function isActiveMeeting(m: Meeting): boolean {
+  const refStr = m.endDate || m.date;
+  const refTime = new Date(refStr);
+  return isNaN(refTime.getTime()) || refTime > new Date();
+}
 
 function readUpcomingTasks(): Task[] {
   if (typeof window === 'undefined') return [];
@@ -40,7 +48,7 @@ function readUpcomingMeetings(): Meeting[] {
   const raw = window.localStorage.getItem(MEETING_STORAGE_KEY);
   if (!raw) return [];
   try {
-    return (JSON.parse(raw) as Meeting[]).slice(0, 3);
+    return (JSON.parse(raw) as Meeting[]).filter(isActiveMeeting).slice(0, 3);
   } catch {
     return [];
   }
@@ -50,10 +58,78 @@ export function UpcomingTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
-  useEffect(() => {
-    setTasks(readUpcomingTasks());
-    setMeetings(readUpcomingMeetings());
+  const loadFromSupabase = async (uid: string) => {
+    const [tasksRes, meetingsRes] = await Promise.all([
+      supabaseClient
+        .from('tasks')
+        .select('id, name, category, due_date, status')
+        .eq('user_id', uid)
+        .neq('status', 'Completed')
+        .order('created_at', { ascending: true })
+        .limit(3),
+      supabaseClient
+        .from('meetings')
+        .select('id, title, category, date, description')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true })
+        .limit(3),
+    ]);
 
+    if (!tasksRes.error && tasksRes.data) {
+      setTasks(
+        tasksRes.data.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          category: row.category,
+          dueDate: row.due_date,
+          status: row.status,
+        }))
+      );
+    } else {
+      // Supabase unavailable — show from localStorage cache
+      setTasks(readUpcomingTasks());
+    }
+
+    if (!meetingsRes.error && meetingsRes.data) {
+      setMeetings(
+        meetingsRes.data.map((row: any) => ({
+          id: row.id,
+          title: row.title,
+          category: row.category,
+          date: row.date,
+          endDate: row.end_date ?? '',
+          description: row.description,
+        })).filter(isActiveMeeting)
+      );
+    } else {
+      setMeetings(readUpcomingMeetings());
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    supabaseClient.auth.getUser().then(({ data }: any) => {
+      if (cancelled) return;
+      if (data.user) {
+        loadFromSupabase(data.user.id);
+      } else {
+        setTasks(readUpcomingTasks());
+        setMeetings(readUpcomingMeetings());
+      }
+    });
+
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event: any, session: any) => {
+      if (cancelled) return;
+      if (session?.user) {
+        loadFromSupabase(session.user.id);
+      } else {
+        setTasks(readUpcomingTasks());
+        setMeetings(readUpcomingMeetings());
+      }
+    });
+
+    // Real-time updates when TaskList/MeetingList mutate data on the same page
     const handleTasksUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (Array.isArray(detail)) {
@@ -71,25 +147,24 @@ export function UpcomingTasks() {
     const handleMeetingsUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (Array.isArray(detail)) {
-        setMeetings((detail as Meeting[]).slice(0, 3));
+        setMeetings((detail as Meeting[]).filter(isActiveMeeting).slice(0, 3));
       } else {
         setMeetings(readUpcomingMeetings());
       }
     };
 
-    const handleStorage = () => {
-      setTasks(readUpcomingTasks());
-      setMeetings(readUpcomingMeetings());
-    };
-
     window.addEventListener('tasktrack-tasks-updated', handleTasksUpdate);
     window.addEventListener('tasktrack-meetings-updated', handleMeetingsUpdate);
-    window.addEventListener('storage', handleStorage);
+    window.addEventListener('storage', () => {
+      setTasks(readUpcomingTasks());
+      setMeetings(readUpcomingMeetings());
+    });
 
     return () => {
+      cancelled = true;
+      subscription.unsubscribe();
       window.removeEventListener('tasktrack-tasks-updated', handleTasksUpdate);
       window.removeEventListener('tasktrack-meetings-updated', handleMeetingsUpdate);
-      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -110,9 +185,7 @@ export function UpcomingTasks() {
                   <p className="mt-1 text-sm text-on-surface-variant">{task.category}</p>
                 </div>
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  task.status === 'In Progress'
-                    ? 'bg-brand-100 text-brand-700'
-                    : 'bg-sage-50 text-sage-600'
+                  task.status === 'In Progress' ? 'bg-brand-100 text-brand-700' : 'bg-sage-50 text-sage-600'
                 }`}>
                   {task.status}
                 </span>
